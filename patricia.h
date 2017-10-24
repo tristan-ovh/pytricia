@@ -152,6 +152,10 @@ void Clear_Patricia (patricia_tree_t *patricia, void_fn1_t func);
 void Destroy_Patricia (patricia_tree_t *patricia, void_fn1_t func);
 void patricia_process (patricia_tree_t *patricia, void_fn2_t func);
 
+char * prefix_toa (prefix_t * prefix);
+int comp_with_mask (void *addr, void *dest, u_int mask);
+u_char * prefix_tochar (prefix_t * prefix);
+
 void Deref_Prefix (prefix_t * prefix);
 prefix_t * New_Prefix(int, void *, int);
 

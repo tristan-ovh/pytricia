@@ -677,6 +677,70 @@ pytricia_children(register PyTricia *self, PyObject *args) {
 }
 
 static PyObject*
+pytricia_find_children(register PyTricia *self, PyObject *args) {
+    PyObject *key = NULL;
+    PyObject *recursive_obj = NULL;
+    if (!PyArg_ParseTuple(args, "O|O", &key, &recursive_obj)) {
+        return NULL;
+    }
+    int recursive = recursive_obj == NULL || PyObject_IsTrue(recursive_obj);
+
+    prefix_t *prefix = _key_object_to_prefix(key);
+    if (!prefix) {
+        PyErr_SetString(PyExc_ValueError, "Invalid prefix.");
+        return NULL;
+    }
+
+    register PyObject *rvlist = PyList_New(0);
+    if (!rvlist) {
+        Deref_Prefix(prefix);
+        return NULL;
+    }
+
+    patricia_node_t* base_node = patricia_search_best(self->m_tree, prefix);
+    int check_children = 0;
+    if (!base_node && self->m_tree->head) {
+    	// If no parent is found use the head as potential glue parent or child
+    	base_node = self->m_tree->head;
+        check_children = 1;
+    }
+    if (base_node) {
+    	check_children|= base_node->bit < prefix->bitlen;
+        patricia_node_t* node = NULL;
+        int err = 0;
+        PATRICIA_WALK (base_node, node) {
+            // Discard prefixes smaller than the base prefix (we want strict children)
+            if (node->bit > prefix->bitlen) {
+                if (check_children && !comp_with_mask(prefix_tochar(node->prefix), prefix_tochar(prefix), prefix->bitlen)) {
+                    // This potential child does not match the prefix
+                    PATRICIA_WALK_BREAK;
+                }
+                PyObject *item = _prefix_to_key_object(node->prefix, self->m_raw_output);
+                if (!item) {
+                    Py_DECREF(rvlist);
+                    rvlist = NULL;
+                    break;
+                }
+                err = PyList_Append(rvlist, item);
+                Py_DECREF(item);
+                if (err != 0) {
+                    Py_DECREF(rvlist);
+                    rvlist = NULL;
+                    break;
+                }
+                if (!recursive) {
+                    // Do not get children of a child
+                    PATRICIA_WALK_BREAK;
+                }
+            }
+        } PATRICIA_WALK_END;
+    }
+
+    Deref_Prefix(prefix);
+    return rvlist;
+}
+
+static PyObject*
 pytricia_parent(register PyTricia *self, PyObject *args) {
     PyObject *key = NULL;
 
@@ -736,6 +800,7 @@ static PyMethodDef pytricia_methods[] = {
     {"delete", (PyCFunction)pytricia_delitem, METH_VARARGS, "delete(prefix) -> \nDelete mapping associated with prefix.\n"},
     {"insert", (PyCFunction)pytricia_insert, METH_VARARGS, "insert(prefix, data) -> data\nCreate mapping between prefix and data in tree."},
     {"children", (PyCFunction)pytricia_children, METH_VARARGS, "children(prefix) -> list\nReturn a list of all prefixes that are more specific than the given prefix (the prefix must be present as an exact match)."},
+    {"find_children", (PyCFunction)pytricia_find_children, METH_VARARGS, "find_children(prefix, [recursive=True]) -> list\nReturn a list of all prefixes that are more specific than the given prefix (the prefix does not have to be present as an exact match). If recursive, include prefixes that are children of others in the list."},
     {"parent", (PyCFunction)pytricia_parent, METH_VARARGS, "parent(prefix) -> prefix\nReturn the immediate parent of the given prefix (the prefix must be present as an exact match)."},
     {NULL,              NULL}           /* sentinel */
 };

@@ -361,6 +361,40 @@ class PyTriciaTests(unittest.TestCase):
             pyt.children("2001:db8:10:42:42::/96")
         self.assertIsInstance(cm.exception, KeyError)
 
+    def testFindChildren(self):
+        pyt = pytricia.PyTricia()
+        pyt.insert("42.0.0.0/8", "0")
+        pyt.insert("42.100.0.0/16", "1")
+        pyt.insert("10.0.0.0/8", "a")
+        pyt.insert("10.100.0.0/16", "b")
+        pyt.insert("10.100.100.0/24", "c")
+        pyt.insert("10.101.0.0/16", "d")
+        self.assertListEqual(sorted(["10.100.0.0/16", "10.100.100.0/24", "10.101.0.0/16"]), sorted(pyt.find_children("10.0.0.0/8")))
+        self.assertListEqual(["10.100.100.0/24"], pyt.find_children("10.100.0.0/16"))
+        self.assertListEqual([], pyt.find_children("10.100.100.0/24"))
+        self.assertListEqual(sorted(["10.0.0.0/8", "10.100.0.0/16", "10.100.100.0/24", "10.101.0.0/16"]), sorted(pyt.find_children("10.0.0.0/7")))
+        self.assertListEqual(sorted(["10.0.0.0/8"]), sorted(pyt.find_children("10.0.0.0/7", False)))
+        self.assertListEqual(["10.100.100.0/24"], pyt.find_children("10.100.0.0/16", False))
+        self.assertListEqual([], pyt.find_children("1.2.3.4/16"))
+
+    def testFindChildrenAlone(self):
+        pyt = pytricia.PyTricia()
+        pyt.insert("1.2.3.4/32", "A")
+        self.assertListEqual(["1.2.3.4/32"], pyt.find_children("1.2.0.0/16"))
+
+    def testFindChildrenIp6(self):
+        pyt = pytricia.PyTricia(128)
+        pyt.insert("2001:db8:42::/48", "0")
+        pyt.insert("2001:db8:42:100::/64", "1")
+        pyt.insert("2001:db8:10::/48", "a")
+        pyt.insert("2001:db8:10:100::/64", "b")
+        pyt.insert("2001:db8:10:100:100::/96", "c")
+        pyt.insert("2001:db8:10:101::/64", "d")
+        self.assertListEqual(sorted(["2001:db8:10:100::/64", "2001:db8:10:100:100::/96", "2001:db8:10:101::/64"]), sorted(pyt.find_children("2001:db8:10::/48")))
+        self.assertListEqual(["2001:db8:10:100:100::/96"], pyt.find_children("2001:db8:10:100::/64"))
+        self.assertListEqual([], pyt.find_children("2001:db8:10:100:100::/96"))
+        self.assertListEqual(sorted(["2001:db8:10:100::/64", "2001:db8:10:100:100::/96", "2001:db8:10:101::/64"]), sorted(pyt.find_children("2001:db8:10:100::/63")))
+
     def testParent(self):
         pyt = pytricia.PyTricia()
         pyt.insert("10.0.0.0/8", "a")
