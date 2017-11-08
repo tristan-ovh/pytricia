@@ -382,6 +382,19 @@ class PyTriciaTests(unittest.TestCase):
         pyt.insert("1.2.3.4/32", "A")
         self.assertListEqual(["1.2.3.4/32"], pyt.find_children("1.2.0.0/16"))
 
+    def testFindLongestPrefix(self):
+        pyt = pytricia.PyTricia()
+        pyt.insert("1.2.3.4/32", "A")
+        self.assertEqual("1.2.3.4/32", pyt.find_longest_prefix("1.2.0.0/16"))
+        pyt.insert("1.2.3.5/32", "B")
+        self.assertEqual("1.2.3.4/31", pyt.find_longest_prefix("1.2.0.0/16"))
+        pyt.insert("1.0.0.0/8", "C")
+        self.assertEqual("1.2.3.4/31", pyt.find_longest_prefix("1.2.0.0/16"))
+        pyt.insert("1.2.3.0/24", "D")
+        self.assertEqual("1.2.3.0/24", pyt.find_longest_prefix("1.2.0.0/16"))
+        pyt.insert("0.0.0.0/0", "E")
+        self.assertEqual("1.2.3.0/24", pyt.find_longest_prefix("1.2.0.0/16"))
+
     def testFindChildrenIp6(self):
         pyt = pytricia.PyTricia(128)
         pyt.insert("2001:db8:42::/48", "0")

@@ -741,6 +741,52 @@ pytricia_find_children(register PyTricia *self, PyObject *args) {
 }
 
 static PyObject*
+pytricia_find_longest_prefix(register PyTricia *self, PyObject *args) {
+    PyObject *key = NULL;
+    if (!PyArg_ParseTuple(args, "O", &key)) {
+        return NULL;
+    }
+
+    prefix_t *prefix = _key_object_to_prefix(key);
+    if (!prefix) {
+        PyErr_SetString(PyExc_ValueError, "Invalid prefix.");
+        return NULL;
+    }
+
+    patricia_node_t* base_node = patricia_search_best(self->m_tree, prefix);
+    int check_children = 0;
+    if (!base_node && self->m_tree->head) {
+        // If no parent is found use the head as potential glue parent or child
+        base_node = self->m_tree->head;
+        check_children = 1;
+    }
+    if (base_node) {
+        check_children|= base_node->bit < prefix->bitlen;
+        patricia_node_t* node = NULL;
+        PATRICIA_WALK_ALL (base_node, node) {
+            // Discard prefixes smaller than the base prefix (we want strict children)
+            if (node->bit > prefix->bitlen)
+                break;
+        } PATRICIA_WALK_END;
+        prefix->bitlen = node->bit;
+        if (node->prefix) {
+            prefix->add = node->prefix->add;
+        } else {
+            // If the node has no prefix, try to find a child with prefix
+            patricia_node_t* child_node = NULL;
+            PATRICIA_WALK (node, child_node) {
+                prefix->add = child_node->prefix->add;
+                break;
+            } PATRICIA_WALK_END;
+        }
+    }
+
+    PyObject* result = _prefix_to_key_object(prefix, self->m_raw_output);
+    Deref_Prefix(prefix);
+    return result;
+}
+
+static PyObject*
 pytricia_parent(register PyTricia *self, PyObject *args) {
     PyObject *key = NULL;
 
@@ -801,6 +847,7 @@ static PyMethodDef pytricia_methods[] = {
     {"insert", (PyCFunction)pytricia_insert, METH_VARARGS, "insert(prefix, data) -> data\nCreate mapping between prefix and data in tree."},
     {"children", (PyCFunction)pytricia_children, METH_VARARGS, "children(prefix) -> list\nReturn a list of all prefixes that are more specific than the given prefix (the prefix must be present as an exact match)."},
     {"find_children", (PyCFunction)pytricia_find_children, METH_VARARGS, "find_children(prefix, [recursive=True]) -> list\nReturn a list of all prefixes that are more specific than the given prefix (the prefix does not have to be present as an exact match). If recursive, include prefixes that are children of others in the list."},
+    {"find_longest_prefix", (PyCFunction)pytricia_find_longest_prefix, METH_VARARGS, "find_longest_prefix(prefix) -> list\nReturn the longest prefix more specific than the given prefix with no choice (the prefix does not have to be present as an exact match)"},
     {"parent", (PyCFunction)pytricia_parent, METH_VARARGS, "parent(prefix) -> prefix\nReturn the immediate parent of the given prefix (the prefix must be present as an exact match)."},
     {NULL,              NULL}           /* sentinel */
 };
